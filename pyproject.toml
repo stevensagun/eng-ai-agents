@@ -26,6 +26,8 @@ requires-python = ">=3.11, <3.12.4"
 dependencies = [
     "datasets>=3.6.0",
     "foxglove>=0.1.10",
+    "ipykernel>=7.1.0",
+    "matplotlib>=3.10.8",
 ]
 
 [project.urls]

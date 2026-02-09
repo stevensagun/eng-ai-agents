@@ -12,7 +12,7 @@
 		"DISPLAY": "${localEnv:DISPLAY}",
 		"PYTHONUNBUFFERED": "True",
 		"UV_LINK_MODE": "copy",
-		"UV_PROJECT_ENVIRONMENT": "${workspaceFolder}/.venv"
+		"UV_PROJECT_ENVIRONMENT": ".venv"
 	},
 	"features": {
 		"ghcr.io/devcontainers/features/common-utils:2": {

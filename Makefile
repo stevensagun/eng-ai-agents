@@ -1,4 +1,4 @@
-.PHONY: install install-dev format lint lint-check type-check test test-cov test-examples clean build deps-update deps-sync quality style fixup venv venv-recreate setup-dev docker-build-gpu docker-build-cpu docker-build docker-run-gpu docker-run-cpu ci-quality ci-test
+.PHONY: install install-dev install-notebooks format lint lint-check type-check test test-cov test-examples clean build deps-update deps-sync quality style fixup venv venv-recreate setup-dev docker-build-gpu docker-build-cpu docker-build docker-run-gpu docker-run-cpu ci-quality ci-test execute-notebook execute-all-notebooks
 # Use stage 0 container pip constraints (only if file exists)
 CONSTRAINT_FILE := /etc/pip/constraint.txt
 CONSTRAINTS := $(if $(wildcard $(CONSTRAINT_FILE)),--constraint $(CONSTRAINT_FILE),)
@@ -8,8 +8,15 @@ check_dirs := examples tests src utils
 VENV_DIR := .venv
 VENV_PY := $(VENV_DIR)/bin/python
 UV := $(shell which uv)
-# Find Python 3.11+ (prefer system python to avoid venv shadowing)
-PYTHON := $(shell /usr/bin/python3 --version 2>/dev/null | grep -qE "3\.(1[1-9]|[2-9][0-9])" && echo /usr/bin/python3 || which python3.12 2>/dev/null || which python3.11 2>/dev/null || echo python3)
+# Find Python 3.11+ (prefer /usr/local/bin/python for PyTorch container compatibility)
+PYTHON := $(shell \
+	for cmd in /usr/local/bin/python /usr/bin/python3; do \
+		if [ -x "$$cmd" ] && $$cmd --version 2>/dev/null | grep -qE "3\.(1[1-9]|[2-9][0-9])"; then \
+			echo $$cmd; \
+			exit 0; \
+		fi; \
+	done; \
+	command -v python3.12 2>/dev/null || command -v python3.11 2>/dev/null || echo python3)
 
 # Create venv with access to system packages (from stage 0 container)
 $(VENV_DIR)/bin/activate:
@@ -136,4 +143,54 @@ start:
 	$(MAKE) venv-recreate
 	$(MAKE) deps-sync
 	$(MAKE) install
+	$(VENV_PY) -m ipykernel install --user --name python3 --display-name "Python 3 (eng-ai-agents)"
 	@echo "To activate the virtual environment, run: source .venv/bin/activate"
+
+# Install notebook dependencies and register kernel
+install-notebooks: venv
+	$(UV) pip install -e ".[notebooks]"
+	$(VENV_PY) -m ipykernel install --user --name python3 --display-name "Python 3 (eng-ai-agents)"
+
+# Notebook execution targets
+execute-notebook:
+ifndef NOTEBOOK
+	@echo "Error: NOTEBOOK parameter is required"
+	@echo "Usage: make execute-notebook NOTEBOOK=<notebook-path>"
+	@echo "Example: make execute-notebook NOTEBOOK=transfer-learning/transfer_learning_tutorial.ipynb"
+	@exit 1
+endif
+	@echo "Getting environment for notebook: $(NOTEBOOK)"
+	$(eval ENV := $(shell python3 scripts/get_notebook_environment.py $(NOTEBOOK)))
+	@echo "Environment: $(ENV)"
+	@if [ "$(ENV)" = "colab" ]; then \
+		echo ""; \
+		echo "═══════════════════════════════════════════════════════════════"; \
+		echo "  This notebook requires Google Colab"; \
+		echo "═══════════════════════════════════════════════════════════════"; \
+		echo ""; \
+		echo "This notebook uses Colab-specific features and cannot be"; \
+		echo "executed locally. Please run it in Google Colab instead."; \
+		echo ""; \
+		echo "  Notebook: $(NOTEBOOK)"; \
+		echo ""; \
+		echo "  Open in Colab:"; \
+		echo "   https://colab.research.google.com/github/pantelis/eng-ai-agents/blob/main/notebooks/$(NOTEBOOK)"; \
+		echo ""; \
+		echo "Manual steps:"; \
+		echo "  1. Click the link above to open in Colab"; \
+		echo "  2. Run all cells in Colab"; \
+		echo "  3. Download any generated artifacts manually"; \
+		echo ""; \
+		echo "═══════════════════════════════════════════════════════════════"; \
+	else \
+		echo "Executing notebook in Docker environment: $(ENV)"; \
+		docker compose run --rm $(ENV) bash -c \
+			"make install-notebooks && python scripts/execute_notebook.py $(NOTEBOOK)"; \
+		echo "Done: Notebook execution complete"; \
+	fi
+
+execute-all-notebooks:
+	@echo "Executing all notebooks from registry..."
+	docker compose run --rm $(or $(ENV),torch.dev.gpu) bash -c \
+		"make install-notebooks && python scripts/execute_all_notebooks.py"
+

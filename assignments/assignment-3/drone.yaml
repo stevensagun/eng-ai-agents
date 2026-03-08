@@ -1,0 +1,4 @@
+names:
+  - drone
+train: ./repository_location/train/images
+val: ./repository_location/test/images

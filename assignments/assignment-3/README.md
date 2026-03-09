@@ -20,7 +20,7 @@ Setting the confidence threshold was tricky. Too low of a threshold and it would
 
 # Output Tracking Videos
 
-Click on the thumbnails below to open a new tab to the video.
+Click on the thumbnails below to open a new tab to the video. The red box indicate the detector detecting the drone at the frame. The green polyline is the predicted trajectory of the drone.
 
 ## Test Video 1
 
